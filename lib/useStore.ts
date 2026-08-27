@@ -18,7 +18,6 @@ import {
   INITIAL_RAG_SOURCES,
   INITIAL_CHAT_MESSAGES,
   INITIAL_EVALUATION_TESTS,
-  INITIAL_EXECUTION_TRACES,
 } from "./mockData";
 
 export function useUserProfile() {
@@ -116,7 +115,7 @@ export function useAssistantChat() {
 
 export function useEvaluation() {
   const [testCases, setTestCases] = useState<EvaluationTestCase[]>(INITIAL_EVALUATION_TESTS);
-  const [traces, setTraces] = useState<ExecutionTrace[]>(INITIAL_EXECUTION_TRACES);
+  const [traces, setTraces] = useState<ExecutionTrace[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -133,6 +132,9 @@ export function useEvaluation() {
     testCases,
     traces,
     isMounted,
+    addTrace: (trace: Omit<ExecutionTrace, "id" | "timestamp">) =>
+      StorageRepository.addExecutionTrace(trace),
+    clearTraces: () => StorageRepository.clearExecutionTraces(),
     resetAll: () => StorageRepository.resetAllData(),
   };
 }

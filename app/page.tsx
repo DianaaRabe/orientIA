@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { CountUp } from "@/components/ui/count-up";
 import { Marquee } from "@/components/ui/marquee";
 import { useUserProfile, useRecommendation, useFormations, useEvaluation } from "@/lib/useStore";
+import { SYNTHETIC_DATASET_SUMMARY } from "@/lib/evaluationDataset";
 
 export default function DashboardPage() {
   const { profile } = useUserProfile();
@@ -32,6 +33,8 @@ export default function DashboardPage() {
 
   const primary = recommendation.primaryFormation;
   const mentions = Array.from(new Set(formations.map((f) => f.mention)));
+  const passedCount = testCases.filter((t) => t.status === "passed").length;
+  const guardrailPassRate = testCases.length > 0 ? Math.round((passedCount / testCases.length) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -71,7 +74,7 @@ export default function DashboardPage() {
                 variant="outline"
                 size="sm"
                 className="bg-white/10 text-white border-white/20 hover:bg-white/20 hover:text-white"
-                leftIcon={<Compass className="w-4 h-4 text-emerald-400" />}
+                leftIcon={<MessageSquareCode className="w-4 h-4 text-emerald-400" />}
               >
                 Lancer l'assistant virtuel
               </Button>
@@ -134,7 +137,7 @@ export default function DashboardPage() {
               <h3 className="text-2xl font-bold text-slate-900 mt-1">
                 <CountUp end={formations.length} duration={1.5} />
               </h3>
-              <p className="text-[11px] text-slate-500 mt-1">{mentions.length} mentions · tous niveaux</p>
+              <p className="text-[11px] text-slate-500 mt-1">{mentions.length} mentions officielles · parcours ISPM</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
               <GraduationCap className="w-5 h-5" />
@@ -145,11 +148,13 @@ export default function DashboardPage() {
         <Card className="hover:border-emerald-300 transition-all">
           <CardContent className="pt-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">Validation Banc Benchmark</p>
+              <p className="text-xs font-medium text-slate-500">Dataset d'Orientation</p>
               <h3 className="text-2xl font-bold text-slate-900 mt-1">
-                <CountUp end={32} duration={1.8} /> cas
+                <CountUp end={SYNTHETIC_DATASET_SUMMARY.profileCount} duration={1.8} /> profils
               </h3>
-              <p className="text-[11px] text-emerald-700 font-semibold mt-1">100% de réussite</p>
+              <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+                {SYNTHETIC_DATASET_SUMMARY.blockingErrors} erreur bloquante · garde-fous {guardrailPassRate}%
+              </p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
               <Award className="w-5 h-5" />

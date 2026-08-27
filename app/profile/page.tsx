@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   UserCheck,
@@ -50,6 +50,40 @@ const ISPM_TRACK_OPTIONS = [
   { value: "TEE", label: "TEE — Tourisme & Environnement" },
 ];
 
+type LevelCategory = "bac" | "bac3" | "master1";
+type DegreeOrigin = "ispm" | "autre";
+
+function getLevelCategory(currentLevel?: string): LevelCategory {
+  const lvl = currentLevel?.toLowerCase() || "";
+  if (lvl.includes("baccalauréat") || lvl.includes("bac 0") || lvl.includes("bac+0") || lvl.includes("série")) return "bac";
+  if (lvl.includes("master 1") || lvl.includes("m1") || lvl.includes("bac +4") || lvl.includes("bac+4")) return "master1";
+  return "bac3";
+}
+
+function getBacSerie(currentLevel?: string) {
+  return BAC_SERIES_OPTIONS.find((option) => currentLevel?.includes(option.value))?.value || "Série C";
+}
+
+function getIspmTrack(currentLevel?: string) {
+  const upperLevel = currentLevel?.toUpperCase() || "";
+  return ISPM_TRACK_OPTIONS.find((option) => upperLevel.includes(option.value))?.value || "IGGLIA";
+}
+
+function getDegreeOrigin(currentLevel?: string): DegreeOrigin {
+  if (!currentLevel) return "ispm";
+  return currentLevel.toLowerCase().includes("ispm") ? "ispm" : "autre";
+}
+
+function getOtherInstitution(currentLevel?: string) {
+  const match = currentLevel?.match(/\((?!ISPM\))([^)]*)\)/i);
+  return match?.[1] || "";
+}
+
+function getOtherMention(currentLevel?: string) {
+  const match = currentLevel?.match(/Mention\s+(.+)$/i);
+  return match?.[1] || "";
+}
+
 export default function ProfilePage() {
   const { profile, updateProfile, isMounted } = useUserProfile();
   const { recompute } = useRecommendation();
@@ -59,18 +93,12 @@ export default function ProfilePage() {
   const [preferredWorkEnv, setPreferredWorkEnv] = useState(profile.preferredWorkEnvironment);
 
   // Dynamic Level State
-  const [levelCategory, setLevelCategory] = useState<"bac" | "bac3" | "master1">(() => {
-    const lvl = profile.currentLevel?.toLowerCase() || "";
-    if (lvl.includes("baccalauréat") || lvl.includes("bac 0") || lvl.includes("série")) return "bac";
-    if (lvl.includes("master 1") || lvl.includes("m1") || lvl.includes("bac +4")) return "master1";
-    return "bac3";
-  });
-
-  const [bacSerie, setBacSerie] = useState("Série C");
-  const [degreeOrigin, setDegreeOrigin] = useState<"ispm" | "autre">("ispm");
-  const [ispmTrack, setIspmTrack] = useState("IGGLIA");
-  const [otherMention, setOtherMention] = useState("");
-  const [otherInstitution, setOtherInstitution] = useState("");
+  const [levelCategory, setLevelCategory] = useState<LevelCategory>(() => getLevelCategory(profile.currentLevel));
+  const [bacSerie, setBacSerie] = useState(() => getBacSerie(profile.currentLevel));
+  const [degreeOrigin, setDegreeOrigin] = useState<DegreeOrigin>(() => getDegreeOrigin(profile.currentLevel));
+  const [ispmTrack, setIspmTrack] = useState(() => getIspmTrack(profile.currentLevel));
+  const [otherMention, setOtherMention] = useState(() => getOtherMention(profile.currentLevel));
+  const [otherInstitution, setOtherInstitution] = useState(() => getOtherInstitution(profile.currentLevel));
 
   // Preferred subjects input
   const [newSubject, setNewSubject] = useState("");
@@ -84,6 +112,22 @@ export default function ProfilePage() {
   // Skills
   const [newSkill, setNewSkill] = useState("");
   const [skills, setSkills] = useState<string[]>(profile.declaredSkills);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
+    setName(profile.name);
+    setPreferredWorkEnv(profile.preferredWorkEnvironment);
+    setLevelCategory(getLevelCategory(profile.currentLevel));
+    setBacSerie(getBacSerie(profile.currentLevel));
+    setDegreeOrigin(getDegreeOrigin(profile.currentLevel));
+    setIspmTrack(getIspmTrack(profile.currentLevel));
+    setOtherMention(getOtherMention(profile.currentLevel));
+    setOtherInstitution(getOtherInstitution(profile.currentLevel));
+    setSubjects(profile.preferredSubjects || []);
+    setAcademicGrades(profile.academicGrades || []);
+    setSkills(profile.declaredSkills || []);
+  }, [isMounted, profile]);
 
   if (!isMounted) return null;
 
@@ -260,7 +304,7 @@ export default function ProfilePage() {
             <Select
               label="Niveau d'études actuel"
               value={levelCategory}
-              onChange={(e) => setLevelCategory(e.target.value as "bac" | "bac3" | "master1")}
+              onChange={(e) => setLevelCategory(e.target.value as LevelCategory)}
               options={[
                 { value: "bac", label: "Baccalauréat (Bac+0)" },
                 { value: "bac3", label: "Bac +3 (Licence validée)" },
@@ -286,7 +330,7 @@ export default function ProfilePage() {
                 <Select
                   label="Établissement d'obtention"
                   value={degreeOrigin}
-                  onChange={(e) => setDegreeOrigin(e.target.value as "ispm" | "autre")}
+                  onChange={(e) => setDegreeOrigin(e.target.value as DegreeOrigin)}
                   options={[
                     { value: "ispm", label: "Obtenu à l'ISPM" },
                     { value: "autre", label: "Autre établissement" },

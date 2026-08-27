@@ -17,10 +17,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAssistantChat, useUserProfile } from "@/lib/useStore";
+import { useAssistantChat, useEvaluation, useUserProfile } from "@/lib/useStore";
 import { ChatMessage } from "@/lib/types";
 import { checkApiHealth } from "@/lib/services/api/health";
 import { ApiStatusState } from "@/lib/types/api/health";
+import { ApiSourceMetadata } from "@/lib/types/api/chat";
 
 // Suggested starter questions
 const SUGGESTED_QUESTIONS = [
@@ -164,6 +165,7 @@ function MarkdownRenderer({ content }: { content: string }) {
 
 export default function AssistantChatPage() {
   const { messages, sendMessage, clearChat } = useAssistantChat();
+  const { addTrace, clearTraces } = useEvaluation();
   const { profile } = useUserProfile();
 
   const [inputQuery, setInputQuery] = useState("");
@@ -206,6 +208,7 @@ export default function AssistantChatPage() {
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend ?? inputQuery).trim();
     if (!text || isLoading) return;
+    const requestStartedAt = Date.now();
 
     setError(null);
     setInputQuery("");
@@ -245,19 +248,101 @@ export default function AssistantChatPage() {
         throw new Error(data.error || "Erreur de connexion au service d'orientation.");
       }
 
-      sendMessage({
+      const assistantMessage = sendMessage({
         sender: "assistant",
         content: data.content,
+        citedSources: Array.isArray(data.sources)
+          ? data.sources.map((source: ApiSourceMetadata, index: number) => ({
+              id: `api-source-${data.requestId || Date.now()}-${index}`,
+              title: source.source_titre || source.nom_parcours || source.code_parcours || "Source RAG ISPM",
+              type: "official_ispm",
+              originUrl: source.source_url || undefined,
+              consultedAt: new Date().toISOString(),
+              extractedSnippet: [
+                source.code_parcours,
+                source.nom_parcours,
+                source.mention,
+                source.fichier_source,
+              ].filter(Boolean).join(" • "),
+              reliabilityStatus: source.statut === "review_needed" ? "review_needed" : "verified",
+              originTag: "real_corpus_ispm",
+            }))
+          : [],
         confidence: "high",
+      });
+
+      const totalDurationMs = Date.now() - requestStartedAt;
+      const retrievedDocuments = Array.isArray(data.sources)
+        ? data.sources.map((source: ApiSourceMetadata) => ({
+            title: source.source_titre || source.nom_parcours || source.code_parcours || "Source RAG ISPM",
+            score: typeof source.score === "number" ? Number(source.score.toFixed(3)) : 0,
+          }))
+        : [];
+
+      addTrace({
+        userQuery: text,
+        profileSnapshot: {
+          currentLevel: profile.currentLevel,
+          preferredSubjects: profile.preferredSubjects,
+          academicGrades: profile.academicGrades,
+          declaredSkills: profile.declaredSkills,
+          interests: profile.interests,
+          preferredWorkEnvironment: profile.preferredWorkEnvironment,
+          completenessPercentage: profile.completenessPercentage,
+        },
+        retrievedDocuments,
+        toolExecutions: [
+          {
+            id: "tool-api-chat",
+            toolName: data.backendSource === "fastapi_render" ? "fastapi_rag_chat" : "groq_local_fallback",
+            displayName: data.backendSource === "fastapi_render" ? "Appel FastAPI RAG Render" : "Fallback Groq local",
+            status: "success",
+            executionTime: `${totalDurationMs}ms`,
+            inputSummary: `${history.length} message(s), top_k=20`,
+            outputSummary: data.requestId ? `request_id=${data.requestId}` : assistantMessage.id,
+          },
+        ],
+        mlOutput: data.backendSource === "fastapi_render"
+          ? `FastAPI RAG: ${retrievedDocuments.length} document(s) récupéré(s)`
+          : "Groq local fallback: réponse générée sans sources FastAPI",
+        finalResponseSnippet: data.content.slice(0, 240),
+        totalDurationMs,
+        safetyPassed: !/ignore|oublie|instructions précédentes|system prompt|développeur/i.test(text),
       });
     } catch (err) {
       const errorMsg =
         err instanceof Error ? err.message : "Erreur inattendue.";
       setError(errorMsg);
-      sendMessage({
+      const totalDurationMs = Date.now() - requestStartedAt;
+      const assistantMessage = sendMessage({
         sender: "assistant",
         content: `Désolé, le service d'orientation est momentanément indisponible : ${errorMsg}`,
         confidence: "low",
+      });
+      addTrace({
+        userQuery: text,
+        profileSnapshot: {
+          currentLevel: profile.currentLevel,
+          preferredSubjects: profile.preferredSubjects,
+          preferredWorkEnvironment: profile.preferredWorkEnvironment,
+          completenessPercentage: profile.completenessPercentage,
+        },
+        retrievedDocuments: [],
+        toolExecutions: [
+          {
+            id: "tool-api-chat-error",
+            toolName: "orientia_chat_request",
+            displayName: "Requête Assistant ORIENT'IA",
+            status: "error",
+            executionTime: `${totalDurationMs}ms`,
+            inputSummary: `${text.length} caractères`,
+            outputSummary: errorMsg,
+          },
+        ],
+        mlOutput: "Erreur avant production d'une prédiction exploitable",
+        finalResponseSnippet: assistantMessage.content.slice(0, 240),
+        totalDurationMs,
+        safetyPassed: false,
       });
     } finally {
       setIsLoading(false);
@@ -273,6 +358,7 @@ export default function AssistantChatPage() {
 
   const handleClear = () => {
     clearChat();
+    clearTraces();
     setError(null);
   };
 

@@ -17,6 +17,16 @@ export interface AdequacyBreakdown {
   reasons: string[];
 }
 
+function toTextList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof value === "string" && value.trim()) {
+    return [value];
+  }
+  return [];
+}
+
 /**
  * Calculates adequacy score (%) between a formation and candidate profile using Regex matching
  */
@@ -46,7 +56,7 @@ export function calculateAdequacyScore(
     .join(" ")
     .toLowerCase();
 
-  const prereqText = (formation.prerequisites || []).join(" ").toLowerCase();
+  const prereqText = toTextList(formation.prerequisites).join(" ").toLowerCase();
 
   // ─── 1. Bac Series & Prerequisites Regex Match (30%) ───────────────────────
   let prereqScore = 60; // Base score

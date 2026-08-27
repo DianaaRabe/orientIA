@@ -16,7 +16,6 @@ import {
   INITIAL_RECOMMENDATION,
   INITIAL_CHAT_MESSAGES,
   INITIAL_EVALUATION_TESTS,
-  INITIAL_EXECUTION_TRACES,
 } from "./mockData";
 
 const KEYS = {
@@ -310,7 +309,30 @@ export const StorageRepository = {
   },
 
   getExecutionTraces(): ExecutionTrace[] {
-    return safeGet<ExecutionTrace[]>(KEYS.TRACES, INITIAL_EXECUTION_TRACES);
+    const traces = safeGet<ExecutionTrace[]>(KEYS.TRACES, []);
+    const realTraces = traces.filter((trace) => trace.id !== "trace-101");
+
+    if (realTraces.length !== traces.length) {
+      safeSet(KEYS.TRACES, realTraces);
+    }
+
+    return realTraces;
+  },
+
+  addExecutionTrace(trace: Omit<ExecutionTrace, "id" | "timestamp">): ExecutionTrace {
+    const traces = this.getExecutionTraces();
+    const newTrace: ExecutionTrace = {
+      ...trace,
+      id: `trace-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+    };
+
+    safeSet(KEYS.TRACES, [newTrace, ...traces].slice(0, 50));
+    return newTrace;
+  },
+
+  clearExecutionTraces(): void {
+    safeSet(KEYS.TRACES, []);
   },
 
   // Reset Storage to initial mock
@@ -322,7 +344,7 @@ export const StorageRepository = {
     localStorage.setItem(KEYS.RECOMMENDATION, JSON.stringify(INITIAL_RECOMMENDATION));
     localStorage.setItem(KEYS.CHAT, JSON.stringify(INITIAL_CHAT_MESSAGES));
     localStorage.setItem(KEYS.EVALUATION, JSON.stringify(INITIAL_EVALUATION_TESTS));
-    localStorage.setItem(KEYS.TRACES, JSON.stringify(INITIAL_EXECUTION_TRACES));
+    localStorage.setItem(KEYS.TRACES, JSON.stringify([]));
     notify();
   },
 };

@@ -67,6 +67,16 @@ export interface SyntheticDatasetProfile {
   originTag: DataOriginTag;
 }
 
+function toStringArray(value: unknown, fallback: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof value === "string" && value.trim()) {
+    return [value];
+  }
+  return fallback;
+}
+
 /**
  * Parses raw immutable Corpus Pedagogique JSON into normalized ISPMFormation structures
  */
@@ -109,12 +119,14 @@ export function parseCorpusFormations(): ExtendedISPMFormation[] {
         degreeLevelsText: parcours.niveaux_diplomes || ["Licence (Bac+3)", "Master (Bac+5)"],
         durationYears: 5, // Official ISPM Bac+5 Master curriculum
         description: `Formation d'excellence préparant aux compétences de ${parcours.nom_parcours}.`,
-        keySubjects: parcours.matieres_principales || [],
-        skillsDeveloped: parcours.competences_developpees || [],
-        prerequisites: parcours.prerequis || ["Baccalauréat Scientifique (C, D, S) ou Technique"],
-        careerOutcomes: parcours.debouches_professionnels || [],
-        careerCompetenceRelations: parcours.relations_competences_metiers || [],
-        passerelles: parcours.passerelles_possibles || [],
+        keySubjects: toStringArray(parcours.matieres_principales),
+        skillsDeveloped: toStringArray(parcours.competences_developpees),
+        prerequisites: toStringArray(parcours.prerequis, ["Baccalauréat Scientifique (C, D, S) ou Technique"]),
+        careerOutcomes: toStringArray(parcours.debouches_professionnels),
+        careerCompetenceRelations: Array.isArray(parcours.relations_competences_metiers)
+          ? parcours.relations_competences_metiers
+          : [],
+        passerelles: toStringArray(parcours.passerelles_possibles),
         sourceRefs,
         sourcesMetadata: sourcesMeta,
         originTag: "real_corpus_ispm",
